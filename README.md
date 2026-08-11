@@ -2,7 +2,6 @@
 
 タスク状態管理JSONと連携し、3回試行上限ストッパーおよび/somebody-help-me自動起動を制御するプラグイン / Plugin for controlling the 3-attempt hard limit stopper and automatic activation of /somebody-help-me in integration with task state management JSON
 
-![Antigravity](https://img.shields.io/badge/Antigravity-Plugin-blue?style=flat-square&logo=google&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.x-blue?style=flat-square&logo=python&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE.MIT)
 
@@ -26,6 +25,23 @@
   - `check_pre_tool.py`: ツール実行前の判定を行います。
   - `update_attempts.py`: ツール実行後の試行回数更新を行います。
   - `check_stop_condition.py`: 停止時の状態判定を行います。
+
+### 導入方法
+
+本プラグインは、以下の標準コマンドまたは手動配置によって導入できます。
+
+#### Agent Plugins CLI (汎用標準)
+```bash
+npx plugins add DovahkiinYuzuko/loop-limiter
+```
+
+#### Antigravity CLI
+```bash
+agy plugin install DovahkiinYuzuko/loop-limiter
+```
+
+#### 手動配置
+プロジェクトの `plugins/` または `.agents/plugins/` ディレクトリ内に本リポジトリを配置してください。
 
 ### LICENSE
 
@@ -51,6 +67,23 @@
   - `check_pre_tool.py`: Pre-execution validation script.
   - `update_attempts.py`: Post-execution attempt counter update script.
   - `check_stop_condition.py`: Stop condition evaluation script.
+
+### Installation
+
+This plugin can be installed using the standard Agent Plugin CLI, Antigravity CLI, or manual directory placement.
+
+#### Agent Plugins CLI (Universal Standard)
+```bash
+npx plugins add DovahkiinYuzuko/loop-limiter
+```
+
+#### Antigravity CLI
+```bash
+agy plugin install DovahkiinYuzuko/loop-limiter
+```
+
+#### Manual Placement
+Clone or place this repository into your project's `plugins/` or `.agents/plugins/` directory.
 
 ### LICENSE
 
