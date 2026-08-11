@@ -30,18 +30,18 @@
 
 本プラグインは、以下の標準コマンドまたは手動配置によって導入できます。
 
-#### Agent Plugins CLI (汎用標準)
+#### Agent Plugins CLI (汎用標準・推奨)
+`git clone` 不要で、GitHub リポジトリから直接インストールできます。
 ```bash
 npx plugins add DovahkiinYuzuko/loop-limiter
 ```
 
-#### Antigravity CLI
+#### Antigravity CLI (ローカル配置からのインストール)
+ローカルにクローンまたは配置したディレクトリパスを指定してインストールできます。
 ```bash
-agy plugin install DovahkiinYuzuko/loop-limiter
+git clone https://github.com/DovahkiinYuzuko/loop-limiter.git
+agy plugin install ./loop-limiter
 ```
-
-#### 手動配置
-プロジェクトの `plugins/` または `.agents/plugins/` ディレクトリ内に本リポジトリを配置してください。
 
 ### LICENSE
 
@@ -72,18 +72,18 @@ agy plugin install DovahkiinYuzuko/loop-limiter
 
 This plugin can be installed using the standard Agent Plugin CLI, Antigravity CLI, or manual directory placement.
 
-#### Agent Plugins CLI (Universal Standard)
+#### Agent Plugins CLI (Universal Standard / Recommended)
+Install directly from the GitHub repository without manual cloning:
 ```bash
 npx plugins add DovahkiinYuzuko/loop-limiter
 ```
 
-#### Antigravity CLI
+#### Antigravity CLI (Install from Local Directory)
+Install using a local directory path after cloning:
 ```bash
-agy plugin install DovahkiinYuzuko/loop-limiter
+git clone https://github.com/DovahkiinYuzuko/loop-limiter.git
+agy plugin install ./loop-limiter
 ```
-
-#### Manual Placement
-Clone or place this repository into your project's `plugins/` or `.agents/plugins/` directory.
 
 ### LICENSE
 
