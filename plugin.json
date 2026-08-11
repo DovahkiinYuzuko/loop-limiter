@@ -1,0 +1,4 @@
+{
+  "name": "plugin-loop-limiter",
+  "description": "タスク状態管理JSONと連携し、3回試行上限ストッパーおよび/somebody-help-me自動起動を制御するプラグイン"
+}

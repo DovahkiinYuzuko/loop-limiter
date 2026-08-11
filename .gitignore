@@ -1,0 +1,15 @@
+# project:plugin-loop-limiter
+*
+!.gitignore
+# ---AUTO-Generated---
+# .gitignores/Plugin-Loop-Limiter.gitignore
+!hooks.json
+!plugin.json
+!README.md
+!LICENSE.*
+# .gitignores/scripts.gitignore
+!scripts/
+!scripts/*.py
+# .gitignores/skills.gitignore
+!skills/
+!skills/**

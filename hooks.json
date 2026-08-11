@@ -1,0 +1,36 @@
+{
+  "loop-limiter": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command|replace_file_content|write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ./scripts/check_pre_tool.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command|replace_file_content|write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ./scripts/update_attempts.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python ./scripts/check_stop_condition.py",
+        "timeout": 10
+      }
+    ]
+  }
+}
