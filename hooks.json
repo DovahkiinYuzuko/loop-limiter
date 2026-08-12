@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ./scripts/check_pre_tool.py",
+            "command": "python plugins/plugin-loop-limiter/scripts/check_pre_tool.py",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ./scripts/update_attempts.py",
+            "command": "python plugins/plugin-loop-limiter/scripts/update_attempts.py",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "python ./scripts/check_stop_condition.py",
+        "command": "python plugins/plugin-loop-limiter/scripts/check_stop_condition.py",
         "timeout": 10
       }
     ]
