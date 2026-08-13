@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import pathlib, runpy; cwd_p = pathlib.Path.cwd() / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'init_or_reset_queue.py'; home_p = pathlib.Path.home() / '.gemini' / 'config' / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'init_or_reset_queue.py'; target = cwd_p if cwd_p.exists() else home_p; runpy.run_path(str(target)) if target.exists() else print('{\\\"status\\\":\\\"ok\\\"}')\"",
+            "command": "python scripts/init_or_reset_queue.py",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import pathlib, runpy; cwd_p = pathlib.Path.cwd() / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'check_pre_tool.py'; home_p = pathlib.Path.home() / '.gemini' / 'config' / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'check_pre_tool.py'; target = cwd_p if cwd_p.exists() else home_p; runpy.run_path(str(target)) if target.exists() else print('{\\\"decision\\\":\\\"allow\\\"}')\"",
+            "command": "python scripts/check_pre_tool.py",
             "timeout": 10
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import pathlib, runpy; cwd_p = pathlib.Path.cwd() / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'update_attempts.py'; home_p = pathlib.Path.home() / '.gemini' / 'config' / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'update_attempts.py'; target = cwd_p if cwd_p.exists() else home_p; runpy.run_path(str(target)) if target.exists() else print('{\\\"status\\\":\\\"ok\\\"}')\"",
+            "command": "python scripts/update_attempts.py",
             "timeout": 10
           }
         ]
@@ -38,7 +38,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "python -c \"import pathlib, runpy; cwd_p = pathlib.Path.cwd() / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'check_stop_condition.py'; home_p = pathlib.Path.home() / '.gemini' / 'config' / 'plugins' / 'plugin-loop-limiter' / 'scripts' / 'check_stop_condition.py'; target = cwd_p if cwd_p.exists() else home_p; runpy.run_path(str(target)) if target.exists() else print('{\\\"status\\\":\\\"ok\\\"}')\"",
+        "command": "python scripts/check_stop_condition.py",
         "timeout": 10
       }
     ]
