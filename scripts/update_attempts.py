@@ -51,11 +51,13 @@ def main():
                     args = tool_call.get("args", {})
                     cmd_val = str(args.get("CommandLine") or args.get("commandLine") or args.get("Instruction") or args.get("TargetFile") or args.get("AbsolutePath") or args.get("Query") or args.get("query") or "").strip()
                     if not cmd_val:
-                        cmd_val = str(summary_arg)
+                        cmd_val = str(args)
 
                     err_val = data.get("error") or data.get("errorDetail") or data.get("errorMessage") or data.get("reason")
-                    if not err_val and has_error:
-                        err_val = "Tool execution encountered error."
+                    exit_code = data.get("exitCode") or data.get("exit_code")
+                    if not err_val and exit_code is not None and exit_code != 0:
+                        err_val = f"Command failed with exit code {exit_code}"
+                    has_error = bool(err_val or (exit_code is not None and exit_code != 0))
 
                     task["attempts"] = task.get("attempts", 0) + 1
                     task["last_executed_at"] = now_str
