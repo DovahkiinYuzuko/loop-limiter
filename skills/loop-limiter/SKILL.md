@@ -10,10 +10,10 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
 ## Mini-Issue Concept & Lifecycle
 
 1. **Issue Creation / Activation**:
-   - A task is created or set to `"status": "in_progress"` with `"attempts": 0` and `"max_attempts": 3`.
+   - A task is created with a top-level `"description"` defining the overall goal (what the user wants to accomplish) and set to `"status": "in_progress"` with `"attempts": 0` and `"max_attempts": 3`.
 2. **Attempt & History Tracking**:
    - Every mutating tool execution (command execution, file edit, creation) increments `attempts` by 1.
-   - Detailed execution info (step, ISO local timestamp, tool name, full `command`, error status, and explicit `error_message`) is automatically logged in `history` inside `active.json`.
+   - Detailed execution info (step, ISO local timestamp, tool name, full `command`, execution `reason` / intent, error status, and explicit `error_message`) is automatically logged in `history` inside `active.json`.
    - Agents MUST inspect `history` before retrying to avoid repeating previously failed commands or identical arguments.
 3. **Completion or Escalation**:
    - **Success**: Upon task resolution, `status` is set to `"completed"`.
@@ -24,19 +24,21 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
 ```json
 {
   "id": "task-name-or-issue-id",
+  "description": "Overall objective of what the user wants to accomplish for this mini-issue",
   "status": "in_progress",
   "attempts": 0,
   "max_attempts": 3,
-  "last_executed_at": "2026-08-13T16:29:04+09:00",
+  "last_executed_at": "2026-08-13T16:36:30+09:00",
   "fallback_plan": "/somebody-help-me",
   "history": [
     {
       "step": 1,
-      "timestamp": "2026-08-13T16:29:04+09:00",
+      "timestamp": "2026-08-13T16:36:30+09:00",
       "tool_name": "run_command",
-      "command": "git add -f dummy.txt",
-      "has_error": true,
-      "error_message": "[security-blocked] Force git operations are strictly prohibited."
+      "command": "python set_mode.py exe",
+      "reason": "Temporarily set Plan Mode Guard to execution mode to run verification tests",
+      "has_error": false,
+      "error_message": null
     }
   ]
 }
@@ -45,5 +47,5 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
 ## Guard Rules
 
 - **PreToolUse Hook**: Intercepts tool calls. If `status` is `"failed"` or `attempts >= max_attempts`, tool calls are blocked.
-- **PostToolUse Hook**: Unconditionally updates `attempts`, `last_executed_at`, and appends full command + error logs to `history` upon every tool execution.
+- **PostToolUse Hook**: Unconditionally updates `attempts`, `last_executed_at`, and appends full command + rationale + error logs to `history` upon every tool execution.
 - **Exceptions**: Queue management keywords (`active.json`, `create_queue`, `manage_task`, `task_queues`) bypass the guard to allow status reset and queue updates.

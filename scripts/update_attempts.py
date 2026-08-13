@@ -57,7 +57,12 @@ def main():
                     exit_code = data.get("exitCode") or data.get("exit_code")
                     if not err_val and exit_code is not None and exit_code != 0:
                         err_val = f"Command failed with exit code {exit_code}"
-                    has_error = bool(err_val or (exit_code is not None and exit_code != 0))
+                    reason_val = str(args.get("Description") or args.get("Instruction") or args.get("description") or args.get("instruction") or data.get("toolSummary") or data.get("toolAction") or "").strip()
+                    if not reason_val:
+                        reason_val = f"Execute {tool_name}"
+
+                    if "description" not in task or not task["description"]:
+                        task["description"] = "Execute mini-issue task and govern attempt limits"
 
                     task["attempts"] = task.get("attempts", 0) + 1
                     task["last_executed_at"] = now_str
@@ -68,6 +73,7 @@ def main():
                         "timestamp": now_str,
                         "tool_name": tool_name,
                         "command": cmd_val,
+                        "reason": reason_val,
                         "has_error": has_error,
                         "error_message": str(err_val) if err_val else None
                     }
