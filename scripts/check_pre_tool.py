@@ -1,5 +1,10 @@
 import sys, json, pathlib
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdin, 'reconfigure'):
+    sys.stdin.reconfigure(encoding='utf-8')
+
 def find_active_file(data: dict) -> pathlib.Path:
     # 1. Use workspacePaths from stdin if present
     ws_paths = data.get("workspacePaths", [])
@@ -31,7 +36,8 @@ def find_active_file(data: dict) -> pathlib.Path:
                 "task_id": "auto_initialized_task",
                 "status": "in_progress",
                 "attempts": 0,
-                "max_attempts": 3
+                "max_attempts": 3,
+                "history": []
             }, indent=2), encoding="utf-8")
         return target_file
     except Exception:
@@ -62,7 +68,7 @@ def main():
         if data_json.get("status") == "failed" or data_json.get("attempts", 0) >= data_json.get("max_attempts", 3):
             print(json.dumps({
                 "decision": "deny",
-                "reason": f"[loop-limit-exceeded] Task reached max attempts ({data_json.get('max_attempts')})."
+                "reason": f"[loop-limit-exceeded] Task reached max attempts ({data_json.get('max_attempts', 3)}). Stopped for User guidance."
             }))
             return
 
