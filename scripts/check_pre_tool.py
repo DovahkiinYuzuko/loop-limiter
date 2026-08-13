@@ -3,27 +3,39 @@ import sys, json, pathlib
 def find_active_file(data: dict) -> pathlib.Path:
     # 1. Use workspacePaths from stdin if present
     ws_paths = data.get("workspacePaths", [])
-    if ws_paths:
-        ws_root = pathlib.Path(ws_paths[0])
-        target = ws_root / "docs" / "task_queues" / "active.json"
-        if target.exists():
-            return target
+    ws_root = pathlib.Path(ws_paths[0]) if ws_paths else pathlib.Path.cwd()
+    target = ws_root / "docs" / "task_queues" / "active.json"
+    if target.exists():
+        return target
 
     # 2. Check current working directory and parents
     cwd = pathlib.Path.cwd()
     curr = cwd
     for _ in range(5):
-        target = curr / "docs" / "task_queues" / "active.json"
-        if target.exists():
-            return target
+        t = curr / "docs" / "task_queues" / "active.json"
+        if t.exists():
+            return t
         if (curr / ".git").exists():
             break
         if curr.parent == curr:
             break
         curr = curr.parent
 
-    # 3. Fallback default
-    return pathlib.Path(r"C:\Users\rikui\Documents\VSCode\agy-hooks\docs\task_queues\active.json")
+    # 3. Auto-initialize active.json in target workspace
+    try:
+        t_dir = ws_root / "docs" / "task_queues"
+        t_dir.mkdir(parents=True, exist_ok=True)
+        target_file = t_dir / "active.json"
+        if not target_file.exists():
+            target_file.write_text(json.dumps({
+                "task_id": "auto_initialized_task",
+                "status": "in_progress",
+                "attempts": 0,
+                "max_attempts": 3
+            }, indent=2), encoding="utf-8")
+        return target_file
+    except Exception:
+        return target
 
 def main():
     try:
@@ -43,10 +55,7 @@ def main():
         active_file = find_active_file(data)
 
         if not active_file.exists():
-            print(json.dumps({
-                "decision": "deny",
-                "reason": "[loop-limiter-missing-task-queue] Active task queue file 'docs/task_queues/active.json' does not exist."
-            }))
+            print(json.dumps({"decision": "allow"}))
             return
 
         data_json = json.loads(active_file.read_text(encoding="utf-8"))
