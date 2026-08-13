@@ -49,8 +49,13 @@ def main():
                     tool_call = data.get("toolCall", {})
                     tool_name = str(tool_call.get("name", "")).strip()
                     args = tool_call.get("args", {})
-                    summary_arg = str(args.get("CommandLine") or args.get("commandLine") or args.get("Instruction") or args.get("TargetFile") or args.get("AbsolutePath") or args.get("query") or "").strip()
-                    has_error = bool(data.get("error"))
+                    cmd_val = str(args.get("CommandLine") or args.get("commandLine") or args.get("Instruction") or args.get("TargetFile") or args.get("AbsolutePath") or args.get("Query") or args.get("query") or "").strip()
+                    if not cmd_val:
+                        cmd_val = str(summary_arg)
+
+                    err_val = data.get("error") or data.get("errorDetail") or data.get("errorMessage") or data.get("reason")
+                    if not err_val and has_error:
+                        err_val = "Tool execution encountered error."
 
                     task["attempts"] = task.get("attempts", 0) + 1
                     task["last_executed_at"] = now_str
@@ -60,8 +65,9 @@ def main():
                         "step": task["attempts"],
                         "timestamp": now_str,
                         "tool_name": tool_name,
-                        "summary": summary_arg[:120],
-                        "has_error": has_error
+                        "command": cmd_val,
+                        "has_error": has_error,
+                        "error_message": str(err_val) if err_val else None
                     }
                     history.append(history_item)
                     task["history"] = history

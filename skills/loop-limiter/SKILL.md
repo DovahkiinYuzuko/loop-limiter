@@ -13,7 +13,8 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
    - A task is created or set to `"status": "in_progress"` with `"attempts": 0` and `"max_attempts": 3`.
 2. **Attempt & History Tracking**:
    - Every mutating tool execution (command execution, file edit, creation) increments `attempts` by 1.
-   - Execution details (step, ISO timestamp with local timezone, tool name, summary, error state) are automatically logged into the `history` array inside `active.json`.
+   - Detailed execution info (step, ISO local timestamp, tool name, full `command`, error status, and explicit `error_message`) is automatically logged in `history` inside `active.json`.
+   - Agents MUST inspect `history` before retrying to avoid repeating previously failed commands or identical arguments.
 3. **Completion or Escalation**:
    - **Success**: Upon task resolution, `status` is set to `"completed"`.
    - **Hard Limit Exceeded (3 Attempts)**: If `attempts` reaches `max_attempts` (default: 3) without resolution, the pre-tool hook denies further tool execution with `[loop-limit-exceeded]`. The agent MUST stop tool calls immediately, report to the User, and trigger `/somebody-help-me` for escalation if needed.
@@ -26,15 +27,16 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
   "status": "in_progress",
   "attempts": 0,
   "max_attempts": 3,
-  "last_executed_at": "2026-08-13T16:23:31+09:00",
+  "last_executed_at": "2026-08-13T16:29:04+09:00",
   "fallback_plan": "/somebody-help-me",
   "history": [
     {
       "step": 1,
-      "timestamp": "2026-08-13T16:23:31+09:00",
+      "timestamp": "2026-08-13T16:29:04+09:00",
       "tool_name": "run_command",
-      "summary": "python set_mode.py exe",
-      "has_error": false
+      "command": "git add -f dummy.txt",
+      "has_error": true,
+      "error_message": "[security-blocked] Force git operations are strictly prohibited."
     }
   ]
 }
@@ -43,5 +45,5 @@ description: Managed task queue and attempt limiter for agentic workflows. Contr
 ## Guard Rules
 
 - **PreToolUse Hook**: Intercepts tool calls. If `status` is `"failed"` or `attempts >= max_attempts`, tool calls are blocked.
-- **PostToolUse Hook**: Unconditionally updates `attempts`, `last_executed_at`, and appends to `history` upon every tool execution.
+- **PostToolUse Hook**: Unconditionally updates `attempts`, `last_executed_at`, and appends full command + error logs to `history` upon every tool execution.
 - **Exceptions**: Queue management keywords (`active.json`, `create_queue`, `manage_task`, `task_queues`) bypass the guard to allow status reset and queue updates.
