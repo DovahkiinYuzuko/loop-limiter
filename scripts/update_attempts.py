@@ -46,9 +46,9 @@ def main():
                 # Check status: update only if task is in_progress
                 if task.get("status") == "in_progress":
                     now_str = datetime.now().astimezone().isoformat()
-                    tool_call = data.get("toolCall", {})
-                    tool_name = str(tool_call.get("name", "")).strip()
-                    args = tool_call.get("args", {})
+                    tool_call = data.get("toolCall") or data.get("tool_call") or {}
+                    tool_name = str(tool_call.get("name") or data.get("tool_name") or data.get("name") or "").strip()
+                    args = tool_call.get("args") or data.get("args") or {}
                     cmd_val = str(args.get("CommandLine") or args.get("commandLine") or args.get("Instruction") or args.get("TargetFile") or args.get("AbsolutePath") or args.get("Query") or args.get("query") or "").strip()
                     if not cmd_val:
                         cmd_val = str(args)
@@ -57,6 +57,7 @@ def main():
                     exit_code = data.get("exitCode") or data.get("exit_code")
                     if not err_val and exit_code is not None and exit_code != 0:
                         err_val = f"Command failed with exit code {exit_code}"
+                    has_error = bool(err_val or (exit_code is not None and exit_code != 0))
                     reason_val = str(args.get("Description") or args.get("Instruction") or args.get("description") or args.get("instruction") or data.get("toolSummary") or data.get("toolAction") or "").strip()
                     if not reason_val:
                         reason_val = f"Execute {tool_name}"
