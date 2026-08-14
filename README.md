@@ -1,6 +1,6 @@
 # plugin-loop-limiter
 
-タスク状態管理JSONと連携し、ステートマシン制御、エラーシグネチャ高速失敗（Fast-Fail）、診断フェーズゲート、差分振動検知、および/somebody-help-me自動誘導を提供するエージェントガードプラグイン / AI Agent guard plugin providing state machine control, error signature fast-fail, diagnosis phase gating, diff oscillation detection, and automatic escalation to /somebody-help-me via task state JSON.
+AIエージェントの無駄な試行錯誤や無限ループを防止し、状態管理と高速失敗（Fast-Fail）を提供するガードプラグイン / Guard plugin preventing runaway loops and unguided trial-and-error edits in AI agents via state machine and fast-fail mechanisms.
 
 [![Python](https://img.shields.io/badge/Python-3.x-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE.MIT)
@@ -11,24 +11,24 @@
 
 ## 日本語
 
-`plugin-loop-limiter` は、Google Antigravity 等のAIエージェント開発環境における無限ループや無駄な試行の反復を防止するための強化型ガードプラグインです。タスク状態管理ファイル（`docs/task_queues/active.json`）と連携し、以下の制御を自動的に適用します。
+`plugin-loop-limiter` は、Google Antigravity 等のAIエージェント開発環境において、前提の不一致による無限ループや無駄なファイル編集・コマンド実行の反復を防止するための強化型ガードプラグインです。タスク状態管理ファイル（`docs/task_queues/active.json`）と連携し、有限状態マシン（FSM）に基づく自動制御を提供します。
 
 ### 主な機能
 
-1. **有限状態マシン（FSM）制御**:
-   - `ready`: 初期状態または待機状態。
+1. **有限状態マシン（FSM）による制御**:
+   - `ready`: 初期状態または実行待機状態。
    - `in_progress`: ツール実行進行中。
    - `diagnosis`: コマンドまたはツール実行エラー時に移行。読み取り専用フェーズとして直接のファイル書き換えを禁止。
    - `blocked_loop`: 同一エラー連続発生（2回）、差分振動、または試行上限到達時に移行。ツール実行を遮断。
    - `failed`: 試行上限（デフォルト3回）到達による失敗。
-   - `completed`: タスク完了。
+   - `completed`: タスク正常完了。
 
-2. **エラーシグネチャ高速失敗（Fast-Fail）**:
-   - ツールエラー出力を正規化（ファイルパス、タイムスタンプ、行番号、メモリポインタ、UUIDをマスク）してSHA-256シグネチャを生成。
+2. **エラーシグネチャによる高速失敗（Fast-Fail）**:
+   - ツールエラー出力を正規化（ファイルパス、タイムスタンプ、行番号、メモリポインタ、UUIDをマスク）してSHA-256シグネチャを生成します。
    - 同一のエラーシグネチャが2回連続で発生した場合、直ちに `blocked_loop` に移行してループを中断し、`/somebody-help-me` へのエスカレーションを案内します。
 
 3. **診断フェーズゲート（Read-Only Phase Gating）**:
-   - エラー発生直後の `diagnosis` 状態では、ファイル変更ツール（`replace_file_content`, `write_to_file`, `multi_replace_file_content`, `delete_file`）の実行を遮断（`decision: "deny"`）。
+   - エラー発生直後の `diagnosis` 状態では、ファイル変更ツール（`replace_file_content`, `write_to_file`, `multi_replace_file_content`, `delete_file`）の実行を遮断します。
    - 調査ツール（`view_file`, `grep_search`, `list_dir`）を実行することで原因分析が行われたとみなし、ゲートを解除して `ready` 状態へ復帰します。
 
 4. **差分振動およびジッター検知（Diff Oscillation & Jitter Detection）**:
@@ -48,7 +48,7 @@
   - `check_stop_condition.py`: 停止時の状態判定およびエスカレーション通知。
   - `manage_task.py`: タスクキュー管理CLI（作成・ステータス確認・完了・リセット）。
   - `create_queue.py`: 新規タスクキュー作成スクリプト。
-  - `test_enhanced_guard.py`: 強化型ガードの網羅的単体テスト。
+  - `test_enhanced_guard.py`: 強化型ガードの網羅的単体テスト（全7ケース検証済み）。
 - `skills/loop-limiter/SKILL.md`: スキル仕様ドキュメント。
 
 ### 導入方法
@@ -64,6 +64,20 @@ git clone https://github.com/DovahkiinYuzuko/loop-limiter.git
 agy plugin install ./loop-limiter
 ```
 
+### 使用方法
+
+タスクを開始する際は、以下のコマンドでタスクチケットを初期化します。
+
+```bash
+python scripts/manage_task.py create --id <task-id> --objective "<task description>"
+```
+
+タスク完了時は、ステータスを `completed` に更新します。
+
+```bash
+python scripts/manage_task.py complete
+```
+
 ### LICENSE
 
 [MIT](./LICENSE.MIT)
@@ -72,20 +86,20 @@ agy plugin install ./loop-limiter
 
 ## English
 
-`plugin-loop-limiter` is an enhanced guard plugin designed for AI agent platforms such as Google Antigravity. It prevents runaway execution loops, unguided trial-and-error edits, and oscillations by synchronizing with `docs/task_queues/active.json`.
+`plugin-loop-limiter` is an enhanced guard plugin designed for AI agent platforms such as Google Antigravity. It prevents runaway execution loops, unguided trial-and-error edits, and oscillations by synchronizing with task state management files (`docs/task_queues/active.json`) under Finite State Machine (FSM) governance.
 
 ### Key Features
 
 1. **Finite State Machine (FSM) Governance**:
-   - `ready`: Ready for task execution.
-   - `in_progress`: Actively running tools.
-   - `diagnosis`: Triggered upon failure. Direct file mutations are blocked until read tools are executed.
+   - `ready`: Initial or awaiting execution state.
+   - `in_progress`: Actively executing tools.
+   - `diagnosis`: Entered upon failure. Direct file mutations are blocked until read tools are executed.
    - `blocked_loop`: Fast-fail triggered by 2 consecutive identical errors, diff oscillation, or max attempts reached.
-   - `failed`: Hard limit exceeded.
+   - `failed`: Hard limit exceeded (default: 3 attempts).
    - `completed`: Successfully resolved.
 
 2. **Error Signature Fast-Fail**:
-   - Normalizes error output (masks paths, timestamps, line numbers, memory pointers, UUIDs) and creates a SHA-256 hash.
+   - Normalizes error output (masks file paths, timestamps, line numbers, memory pointers, UUIDs) and creates a SHA-256 signature hash.
    - 2 consecutive identical signatures immediately switch state to `blocked_loop` and guide escalation to `/somebody-help-me`.
 
 3. **Read-Only Phase Gating (Diagnosis Gate)**:
@@ -96,7 +110,7 @@ agy plugin install ./loop-limiter
    - Identifies and blocks ping-pong edit reversals ($A \to B \to A$) and repetitive micro-edits ($> 90\%$ similarity on failed attempts).
 
 5. **Fallback & Escalation**:
-   - Automatically recommends `/somebody-help-me` upon halting.
+   - Automatically recommends `/somebody-help-me` upon halting for root cause diagnosis and user consultation.
 
 ### Directory Structure
 
@@ -109,7 +123,7 @@ agy plugin install ./loop-limiter
   - `check_stop_condition.py`: Stop hook evaluating terminal states.
   - `manage_task.py`: CLI management tool.
   - `create_queue.py`: Queue initializer script.
-  - `test_enhanced_guard.py`: Full unit test suite.
+  - `test_enhanced_guard.py`: Full unit test suite (7 cases verified).
 - `skills/loop-limiter/SKILL.md`: Skill specification.
 
 ### Installation
@@ -123,6 +137,20 @@ npx plugins add DovahkiinYuzuko/loop-limiter
 ```bash
 git clone https://github.com/DovahkiinYuzuko/loop-limiter.git
 agy plugin install ./loop-limiter
+```
+
+### Usage
+
+When starting a task, initialize a task ticket with the following command:
+
+```bash
+python scripts/manage_task.py create --id <task-id> --objective "<task description>"
+```
+
+Upon task resolution, mark the status as completed:
+
+```bash
+python scripts/manage_task.py complete
 ```
 
 ### LICENSE
