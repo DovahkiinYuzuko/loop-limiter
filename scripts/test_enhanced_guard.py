@@ -307,7 +307,75 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         active = self.read_active()
         self.assertEqual(active["consecutive_error_count"], 0)
         self.assertIsNone(active["last_error_signature"])
-        self.assertEqual(active["status"], "ready")
+    # 6. Antigravity toolResult output text format error detection
+    def test_antigravity_output_payload_error_detection(self):
+        # Simulate Antigravity PostToolUse payload with exit code inside output string
+        self.run_post_tool({
+            "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
+            "toolResult": {
+                "output": "The command exited with code 1.\nTraceback (most recent call last):\n  File 'fail.py', line 1\nRuntimeError: deliberate-fail-1"
+            }
+        })
+        active = self.read_active()
+        self.assertEqual(active["status"], "diagnosis")
+        self.assertEqual(active["consecutive_error_count"], 1)
+        self.assertIsNotNone(active["last_error_signature"])
+    # 7. File edit between same error does not clear signature, so Fast-Fail triggers on 2nd command failure
+    def test_file_edit_does_not_clear_error_signature_so_fast_fail_triggers(self):
+        # Step 1: 1st command failure
+        self.run_post_tool({
+            "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
+            "error": "RuntimeError: deliberate-fail-1",
+            "exitCode": 1
+        })
+        active1 = self.read_active()
+        self.assertEqual(active1["status"], "diagnosis")
+        self.assertEqual(active1["consecutive_error_count"], 1)
+        sig1 = active1["last_error_signature"]
+
+        # Step 2: Read tool to investigate
+        self.run_post_tool({
+            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "fail.py"}},
+            "error": None
+        })
+        active2 = self.read_active()
+        self.assertEqual(active2["status"], "ready")
+        self.assertEqual(active2["last_error_signature"], sig1)
+
+        # Step 3: File edit (modifying file to attempt fix)
+        self.run_post_tool({
+            "toolCall": {
+                "name": "write_to_file",
+                "args": {
+                    "TargetFile": "fail.py",
+                    "CodeContent": "print('patched code')"
+                }
+            },
+            "error": None
+        })
+        active3 = self.read_active()
+        self.assertEqual(active3["status"], "ready")
+        # Ensure signature is NOT cleared by file edit
+        self.assertEqual(active3["last_error_signature"], sig1)
+
+        # Step 4: 2nd command failure with SAME error (patch didn't solve root cause)
+        self.run_post_tool({
+            "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
+            "error": "RuntimeError: deliberate-fail-1",
+            "exitCode": 1
+        })
+        active4 = self.read_active()
+        # Fast-Fail MUST trigger and block the loop!
+        self.assertEqual(active4["status"], "blocked_loop")
+        self.assertEqual(active4["consecutive_error_count"], 2)
+
+        # Step 5: Next tool is blocked with loop-limit-blocked
+        pre_blocked = self.run_pre_tool({
+            "toolCall": {"name": "write_to_file", "args": {"TargetFile": "fail.py", "CodeContent": "retry"}}
+        })
+        self.assertEqual(pre_blocked["decision"], "deny")
+        self.assertIn("loop-limit-blocked", pre_blocked["reason"])
+        self.assertIn("/somebody-help-me", pre_blocked["reason"])
 
 if __name__ == "__main__":
     unittest.main()

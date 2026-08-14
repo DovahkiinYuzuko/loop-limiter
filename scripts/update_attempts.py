@@ -80,6 +80,13 @@ def normalize_error_message(err_text: str) -> tuple[str, str, str]:
 def main():
     try:
         raw = sys.stdin.read()
+        debug_log = pathlib.Path(r"C:\Users\rikui\Documents\VSCode\agy-hooks\docs\task_queues\debug_hook_stdin.jsonl")
+        try:
+            with open(debug_log, "a", encoding="utf-8") as f:
+                f.write(raw.strip() + "\n")
+        except Exception:
+            pass
+
         if not raw.strip():
             print(json.dumps({}))
             return
@@ -123,10 +130,57 @@ def main():
 
         err_val = data.get("error") or data.get("errorDetail") or data.get("errorMessage") or data.get("reason")
         exit_code = data.get("exitCode") or data.get("exit_code")
-        if not err_val and exit_code is not None and exit_code != 0:
-            err_val = f"Command failed with exit code {exit_code}"
 
-        has_error = bool(err_val or (exit_code is not None and exit_code != 0))
+        # Extract potential output/result texts from toolResult or data fields
+        tool_result = data.get("toolResult") or data.get("tool_result") or {}
+        output_text = ""
+        if isinstance(tool_result, dict):
+            output_text = str(tool_result.get("output") or tool_result.get("content") or tool_result.get("error") or "")
+            if exit_code is None:
+                exit_code = tool_result.get("exitCode") or tool_result.get("exit_code")
+        elif isinstance(tool_result, str):
+            output_text = tool_result
+
+        raw_output = str(data.get("output") or data.get("content") or data.get("response") or "")
+        combined_text = f"{output_text}\n{raw_output}".strip()
+
+        # Fallback to reading transcriptPath if available and output is empty
+        transcript_path_str = data.get("transcriptPath") or data.get("transcript_path")
+        if transcript_path_str and pathlib.Path(transcript_path_str).exists():
+            try:
+                t_lines = pathlib.Path(transcript_path_str).read_text(encoding="utf-8", errors="ignore").strip().splitlines()
+                for line in reversed(t_lines[-10:]):
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    t_type = entry.get("type", "")
+                    if t_type in ("RUN_COMMAND", "CODE_ACTION", "ERROR_MESSAGE", "TOOL_RESULT") or entry.get("exit_code") is not None:
+                        t_content = str(entry.get("content") or "")
+                        t_exit_code = entry.get("exit_code")
+                        if t_exit_code is not None and exit_code is None:
+                            exit_code = t_exit_code
+                        if t_content and not combined_text:
+                            combined_text = t_content
+                        break
+            except Exception:
+                pass
+
+        # Check for non-zero exit code embedded in text
+        if exit_code is None:
+            m = re.search(r'exited with code\s+([1-9]\d*)', combined_text, re.IGNORECASE)
+            if m:
+                exit_code = int(m.group(1))
+
+        # Check for error indicator, traceback, or non-zero exit code
+        if not err_val:
+            if "Traceback (most recent call last):" in combined_text or "Error:" in combined_text or "Exception:" in combined_text:
+                err_val = combined_text
+            elif exit_code is not None and int(exit_code) != 0:
+                err_val = f"Command failed with exit code {exit_code}\n{combined_text}".strip()
+            elif re.search(r'\b(FAILED|ERROR|denied with reason)\b', combined_text, re.IGNORECASE):
+                err_val = combined_text
+
+        has_error = bool(err_val or (exit_code is not None and int(exit_code) != 0))
 
         err_type, norm_err, err_sig = ("", "", "")
         if has_error:
@@ -158,10 +212,16 @@ def main():
                 # Read tool executed -> opens diagnosis gate back to ready
                 if current_status == "diagnosis":
                     task["status"] = "ready"
-            else:
-                # Mutating command or file edit succeeded
+            elif tool_name == "run_command":
+                # Command succeeded -> resets error signature and counter
                 task["last_error_signature"] = None
                 task["consecutive_error_count"] = 0
+                if current_status == "diagnosis":
+                    task["status"] = "ready"
+            else:
+                # File edit / modification succeeded -> opens diagnosis gate back to ready,
+                # BUT keeps last_error_signature to ensure that if the same error recurs upon test execution,
+                # Fast-Fail will correctly detect the recurring bug and trigger escalation.
                 if current_status == "diagnosis":
                     task["status"] = "ready"
 
