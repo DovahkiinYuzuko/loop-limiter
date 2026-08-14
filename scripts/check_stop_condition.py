@@ -1,4 +1,12 @@
-import sys, json, pathlib
+#!/usr/bin/env python3
+import sys
+import json
+import pathlib
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdin, 'reconfigure'):
+    sys.stdin.reconfigure(encoding='utf-8')
 
 def find_active_file(data: dict) -> pathlib.Path:
     ws_paths = data.get("workspacePaths", [])
@@ -20,7 +28,7 @@ def find_active_file(data: dict) -> pathlib.Path:
             break
         curr = curr.parent
 
-    return pathlib.Path(r"C:\Users\rikui\Documents\VSCode\agy-hooks\docs\task_queues\active.json")
+    return pathlib.Path.cwd() / "docs" / "task_queues" / "active.json"
 
 def main():
     try:
@@ -30,12 +38,18 @@ def main():
 
         if active_file.exists():
             task_data = json.loads(active_file.read_text(encoding="utf-8"))
-            if task_data.get("status") == "failed":
+            status = str(task_data.get("status", "ready")).lower()
+            attempts = task_data.get("attempts", 0)
+            max_attempts = task_data.get("max_attempts", 3)
+            consecutive_errors = task_data.get("consecutive_error_count", 0)
+
+            if status in ("failed", "blocked_loop") or attempts >= max_attempts:
                 print(json.dumps({
                     "decision": "continue",
-                    "reason": f"[Loop Limit Halting] Task failed after {task_data.get('attempts')} attempts. Please follow fallback steps."
-                }))
+                    "reason": f"[Loop Limit Halting] Task entered '{status}' state (attempts: {attempts}/{max_attempts}, consecutive identical errors: {consecutive_errors}). Please consult User and escalate via /somebody-help-me for assistance."
+                }, ensure_ascii=False))
                 return
+
         print(json.dumps({}))
     except Exception:
         print(json.dumps({}))
