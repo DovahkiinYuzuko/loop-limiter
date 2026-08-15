@@ -136,7 +136,7 @@ def main():
         max_attempts = data_json.get("max_attempts", 3)
         history = data_json.get("history", [])
 
-        # 2. Check Blocked Loop / Failed states or max attempt limit
+        # 2. Check Blocked Loop / Failed states or max attempt limit (Hard Stop on 3 attempts)
         if status in ("blocked_loop", "failed") or attempts >= max_attempts:
             reason_msg = (
                 f"[loop-limit-blocked] Task is currently '{status}' (attempts: {attempts}/{max_attempts}). "
@@ -144,18 +144,6 @@ def main():
             )
             print(json.dumps({"decision": "deny", "reason": reason_msg}))
             return
-
-        # 3. Read-Only Phase Gating (Diagnosis Gate)
-        if status == "diagnosis":
-            if tool_name in FILE_MUTATING_TOOLS:
-                deny_msg = (
-                    f"[diagnosis-gate] Task entered diagnosis phase after previous failure. "
-                    f"Direct mutating tool '{tool_name}' is blocked. "
-                    f"Please investigate the root cause using read tools (view_file, grep_search, list_dir) "
-                    f"or explain the failure analysis to User before editing files."
-                )
-                print(json.dumps({"decision": "deny", "reason": deny_msg}))
-                return
 
         # 4. Diff Oscillation & Jitter Detection
         is_oscillating, osc_reason = check_diff_oscillation(tool_name, args, history)

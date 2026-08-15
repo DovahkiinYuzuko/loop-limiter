@@ -177,10 +177,26 @@ def main():
                 err_val = combined_text
             elif exit_code is not None and int(exit_code) != 0:
                 err_val = f"Command failed with exit code {exit_code}\n{combined_text}".strip()
-            elif re.search(r'\b(FAILED|ERROR|denied with reason)\b', combined_text, re.IGNORECASE):
+            elif re.search(r'\b(FAILED|FATAL ERROR)\b', combined_text, re.IGNORECASE):
                 err_val = combined_text
 
         has_error = bool(err_val or (exit_code is not None and int(exit_code) != 0))
+
+        # Check if the failure is actually an intentional interception from a PreToolUse guard hook
+        guard_indicators = [
+            "[plan mode guard]",
+            "[diagnosis-gate]",
+            "[diagnosis-required]",
+            "[loop-limit-blocked]",
+            "[loop-limit-exceeded]",
+            "[diff oscillation detected]",
+            "denied with reason:",
+            "tool call denied"
+        ]
+        is_guard_denial = any(ind in combined_text.lower() for ind in guard_indicators)
+        if is_guard_denial:
+            has_error = False
+            err_val = None
 
         err_type, norm_err, err_sig = ("", "", "")
         if has_error:
@@ -195,18 +211,15 @@ def main():
             if last_sig == err_sig and err_sig != "":
                 consecutive_errors += 1
                 task["consecutive_error_count"] = consecutive_errors
-                if consecutive_errors >= 2:
-                    task["status"] = "blocked_loop"
-                else:
-                    task["status"] = "diagnosis"
             else:
                 task["last_error_signature"] = err_sig
                 task["consecutive_error_count"] = 1
-                task["status"] = "diagnosis"
 
-            if task["attempts"] >= max_attempts and task["status"] != "blocked_loop":
+            if task["attempts"] >= max_attempts:
                 task["status"] = "failed"
-        else:
+            else:
+                task["status"] = "diagnosis"
+        elif not is_guard_denial:
             # Success
             if tool_name in READ_TOOLS:
                 # Read tool executed -> opens diagnosis gate back to ready
@@ -219,9 +232,7 @@ def main():
                 if current_status == "diagnosis":
                     task["status"] = "ready"
             else:
-                # File edit / modification succeeded -> opens diagnosis gate back to ready,
-                # BUT keeps last_error_signature to ensure that if the same error recurs upon test execution,
-                # Fast-Fail will correctly detect the recurring bug and trigger escalation.
+                # File edit / modification succeeded -> opens diagnosis gate back to ready
                 if current_status == "diagnosis":
                     task["status"] = "ready"
 

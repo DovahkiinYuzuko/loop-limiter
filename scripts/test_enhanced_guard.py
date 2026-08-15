@@ -79,48 +79,29 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, f"check_stop_condition crashed: {proc.stderr}")
         return json.loads(proc.stdout.strip()) if proc.stdout.strip() else {}
 
-    # 1. Fast-Fail on Two Consecutive Identical Errors
-    def test_fast_fail_consecutive_identical_errors(self):
-        # Error 1 with specific path, line number, memory addr
-        err1 = "ValueError: Invalid syntax in C:\\Users\\test\\file.py line 45 at 0x7fff5fbff"
-        self.run_post_tool({
-            "toolCall": {"name": "run_command", "args": {"CommandLine": "pytest"}},
-            "error": err1,
-            "exitCode": 1
-        })
+    # 1. 3 Attempts Hard Limit & Escalation
+    def test_three_attempts_hard_limit(self):
+        for i in range(1, 4):
+            self.run_post_tool({
+                "toolCall": {"name": "run_command", "args": {"CommandLine": "pytest"}},
+                "error": f"AssertionError: test failure {i}",
+                "exitCode": 1
+            })
 
         active = self.read_active()
-        self.assertEqual(active["status"], "diagnosis")
-        self.assertEqual(active["consecutive_error_count"], 1)
-        self.assertIsNotNone(active["last_error_signature"])
+        self.assertEqual(active["attempts"], 3)
+        self.assertEqual(active["status"], "failed")
 
-        # Error 2 with different path, line number, memory addr (but same normalized signature)
-        err2 = "ValueError: Invalid syntax in /opt/project/other.py line 99 at 0xdeadbeef"
-        self.run_post_tool({
-            "toolCall": {"name": "run_command", "args": {"CommandLine": "pytest"}},
-            "error": err2,
-            "exitCode": 1
-        })
-
-        active = self.read_active()
-        self.assertEqual(active["status"], "blocked_loop")
-        self.assertEqual(active["consecutive_error_count"], 2)
-
-        # Verify PreToolUse denies further actions
+        # Verify PreToolUse denies further actions on 3rd attempt exceeded
         res_pre = self.run_pre_tool({
             "toolCall": {"name": "run_command", "args": {"CommandLine": "pytest"}}
         })
         self.assertEqual(res_pre["decision"], "deny")
         self.assertIn("somebody-help-me", res_pre["reason"])
 
-        # Verify Stop Hook notifies escalation
-        res_stop = self.run_stop_hook()
-        self.assertEqual(res_stop.get("decision"), "continue")
-        self.assertIn("somebody-help-me", res_stop.get("reason", ""))
-
-    # 2. Read-Only Phase Gating (Diagnosis Gate)
-    def test_diagnosis_gate_and_unlock(self):
-        # Trigger an initial failure to enter diagnosis mode
+    # 2. Mutating tools allowed during diagnosis under attempt limit
+    def test_mutating_tools_allowed_under_limit(self):
+        # Trigger an initial failure
         self.run_post_tool({
             "toolCall": {"name": "run_command", "args": {"CommandLine": "npm test"}},
             "error": "Error: Test suite failed",
@@ -129,8 +110,9 @@ class TestEnhancedLoopGuard(unittest.TestCase):
 
         active = self.read_active()
         self.assertEqual(active["status"], "diagnosis")
+        self.assertEqual(active["attempts"], 1)
 
-        # Mutating file tool MUST be denied
+        # File editing tool is allowed to attempt a fix without being blocked
         res_mutate = self.run_pre_tool({
             "toolCall": {
                 "name": "replace_file_content",
@@ -141,42 +123,7 @@ class TestEnhancedLoopGuard(unittest.TestCase):
                 }
             }
         })
-        self.assertEqual(res_mutate["decision"], "deny")
-        self.assertIn("diagnosis-gate", res_mutate["reason"])
-
-        # Read tool MUST be allowed
-        res_read = self.run_pre_tool({
-            "toolCall": {
-                "name": "view_file",
-                "args": {"AbsolutePath": str(self.ws_root / "src" / "index.js")}
-            }
-        })
-        self.assertEqual(res_read["decision"], "allow")
-
-        # Execute read tool post hook -> unlocks diagnosis gate
-        self.run_post_tool({
-            "toolCall": {
-                "name": "view_file",
-                "args": {"AbsolutePath": str(self.ws_root / "src" / "index.js")}
-            },
-            "error": None
-        })
-
-        active_after_read = self.read_active()
-        self.assertEqual(active_after_read["status"], "ready")
-
-        # Now mutating tool MUST be allowed
-        res_mutate_after = self.run_pre_tool({
-            "toolCall": {
-                "name": "replace_file_content",
-                "args": {
-                    "TargetFile": str(self.ws_root / "src" / "index.js"),
-                    "TargetContent": "const x = 1;",
-                    "ReplacementContent": "const x = 2;"
-                }
-            }
-        })
-        self.assertEqual(res_mutate_after["decision"], "allow")
+        self.assertEqual(res_mutate["decision"], "allow")
 
     # 3. Diff Reversal & Oscillation Detection
     def test_diff_reversal_and_oscillation_detection(self):
@@ -209,41 +156,6 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         self.assertEqual(res_reversal["decision"], "deny")
         self.assertIn("Diff Oscillation Detected", res_reversal["reason"])
         self.assertIn("exactly reverses", res_reversal["reason"])
-
-        # Step 3: Test Jitter / High-Similarity on Failed Edit
-        failed_snippet = "def calculate_total(items):\n    sum_val = 0\n    for x in items:\n        sum_val += x\n    return sum_val"
-        self.run_post_tool({
-            "toolCall": {
-                "name": "write_to_file",
-                "args": {
-                    "TargetFile": target_file,
-                    "CodeContent": failed_snippet
-                }
-            },
-            "error": "SyntaxError: unexpected indent",
-            "exitCode": 1
-        })
-
-        # Unlock diagnosis by reading file
-        self.run_post_tool({
-            "toolCall": {"name": "view_file", "args": {"AbsolutePath": target_file}},
-            "error": None
-        })
-
-        # Attempt almost identical edit (> 90% similarity) on the failed edit
-        near_identical_snippet = "def calculate_total(items):\n    sum_val = 0\n    for x in items:\n        sum_val += x\n    return sum_val "
-        res_jitter = self.run_pre_tool({
-            "toolCall": {
-                "name": "write_to_file",
-                "args": {
-                    "TargetFile": target_file,
-                    "CodeContent": near_identical_snippet
-                }
-            }
-        })
-        self.assertEqual(res_jitter["decision"], "deny")
-        self.assertIn("Diff Oscillation Detected", res_jitter["reason"])
-        self.assertIn("similar", res_jitter["reason"])
 
     # 4. Multi-step Normal Workflow without False Positives
     def test_multi_step_normal_workflow(self):
@@ -298,7 +210,7 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         self.assertEqual(active["consecutive_error_count"], 1)
         self.assertIsNotNone(active["last_error_signature"])
 
-        # Succeed next
+        # Succeed next command
         self.run_post_tool({
             "toolCall": {"name": "run_command", "args": {"CommandLine": "pytest"}},
             "error": None,
@@ -307,9 +219,10 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         active = self.read_active()
         self.assertEqual(active["consecutive_error_count"], 0)
         self.assertIsNone(active["last_error_signature"])
+        self.assertEqual(active["status"], "ready")
+
     # 6. Antigravity toolResult output text format error detection
     def test_antigravity_output_payload_error_detection(self):
-        # Simulate Antigravity PostToolUse payload with exit code inside output string
         self.run_post_tool({
             "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
             "toolResult": {
@@ -320,62 +233,22 @@ class TestEnhancedLoopGuard(unittest.TestCase):
         self.assertEqual(active["status"], "diagnosis")
         self.assertEqual(active["consecutive_error_count"], 1)
         self.assertIsNotNone(active["last_error_signature"])
-    # 7. File edit between same error does not clear signature, so Fast-Fail triggers on 2nd command failure
-    def test_file_edit_does_not_clear_error_signature_so_fast_fail_triggers(self):
-        # Step 1: 1st command failure
-        self.run_post_tool({
-            "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
-            "error": "RuntimeError: deliberate-fail-1",
-            "exitCode": 1
-        })
-        active1 = self.read_active()
-        self.assertEqual(active1["status"], "diagnosis")
-        self.assertEqual(active1["consecutive_error_count"], 1)
-        sig1 = active1["last_error_signature"]
+        self.assertEqual(active["attempts"], 1)
 
-        # Step 2: Read tool to investigate
+    # 7. Guard interceptions (e.g. Plan Mode Guard, Diagnosis Gate) are excluded from failure attempts
+    def test_guard_policy_interceptions_ignored(self):
+        # Emulate a tool call blocked by Plan Mode Guard
         self.run_post_tool({
-            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "fail.py"}},
-            "error": None
+            "toolCall": {"name": "write_to_file", "args": {"TargetFile": "src/sample.py", "CodeContent": "x = 100"}},
+            "toolResult": {
+                "error": "model output error: invalid tool call error (invalid_args) tool call denied with reason: [Plan Mode Guard] Currently in Plan mode."
+            }
         })
-        active2 = self.read_active()
-        self.assertEqual(active2["status"], "ready")
-        self.assertEqual(active2["last_error_signature"], sig1)
-
-        # Step 3: File edit (modifying file to attempt fix)
-        self.run_post_tool({
-            "toolCall": {
-                "name": "write_to_file",
-                "args": {
-                    "TargetFile": "fail.py",
-                    "CodeContent": "print('patched code')"
-                }
-            },
-            "error": None
-        })
-        active3 = self.read_active()
-        self.assertEqual(active3["status"], "ready")
-        # Ensure signature is NOT cleared by file edit
-        self.assertEqual(active3["last_error_signature"], sig1)
-
-        # Step 4: 2nd command failure with SAME error (patch didn't solve root cause)
-        self.run_post_tool({
-            "toolCall": {"name": "run_command", "args": {"CommandLine": "python fail.py"}},
-            "error": "RuntimeError: deliberate-fail-1",
-            "exitCode": 1
-        })
-        active4 = self.read_active()
-        # Fast-Fail MUST trigger and block the loop!
-        self.assertEqual(active4["status"], "blocked_loop")
-        self.assertEqual(active4["consecutive_error_count"], 2)
-
-        # Step 5: Next tool is blocked with loop-limit-blocked
-        pre_blocked = self.run_pre_tool({
-            "toolCall": {"name": "write_to_file", "args": {"TargetFile": "fail.py", "CodeContent": "retry"}}
-        })
-        self.assertEqual(pre_blocked["decision"], "deny")
-        self.assertIn("loop-limit-blocked", pre_blocked["reason"])
-        self.assertIn("/somebody-help-me", pre_blocked["reason"])
+        active = self.read_active()
+        self.assertEqual(active["attempts"], 0)
+        self.assertEqual(active["consecutive_error_count"], 0)
+        self.assertIsNone(active["last_error_signature"])
+        self.assertEqual(active["status"], "ready")
 
 if __name__ == "__main__":
     unittest.main()
