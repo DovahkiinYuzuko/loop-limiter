@@ -43,11 +43,9 @@ def main():
             max_attempts = task_data.get("max_attempts", 3)
             consecutive_errors = task_data.get("consecutive_error_count", 0)
 
+            # 1. If limit reached or marked failed/blocked, ALLOW agent to stop and respond to User
             if status in ("failed", "blocked_loop") or attempts >= max_attempts:
-                print(json.dumps({
-                    "decision": "continue",
-                    "reason": f"[Loop Limit Halting] Task entered '{status}' state (attempts: {attempts}/{max_attempts}, consecutive identical errors: {consecutive_errors}). Please consult User and escalate via /somebody-help-me for assistance."
-                }, ensure_ascii=False))
+                print(json.dumps({}))
                 return
 
         print(json.dumps({}))
